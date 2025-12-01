@@ -52,17 +52,5 @@
     "env": {
       "NODE_ENV": "production"
     }
-  },
-
-  "ignoreCommand": "echo ignoring",
-
-  "excludedFiles": [
-    "mongo-migrate/**",
-    "scripts/**",
-    "public/uploaded_photos/**",
-    "public/uploads/**",
-    "public/uploads/assignment_questions/**",
-    "public/uploads/student_answers/**",
-    "uploads/**"
-  ]
+  }
 }

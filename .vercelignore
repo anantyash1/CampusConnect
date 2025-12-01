@@ -1,0 +1,8 @@
+mongo-migrate/
+scripts/
+uploads/
+public/uploads/
+public/uploaded_photos/
+public/uploads/student_answers/
+public/uploads/assignment_questions/
+public/uploads/assignment_questions/
