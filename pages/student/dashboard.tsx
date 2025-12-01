@@ -13,7 +13,7 @@ import {
   Menu,
   X,
 } from 'lucide-react';
-import { useToast } from '@/pages/hooks/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import Profile from '@/components/student/Profile';
 import Assignments from '@/components/student/Assignments';
 import Grades from '@/components/student/Grades';

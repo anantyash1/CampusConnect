@@ -16,7 +16,7 @@ import {
   Menu,
   X,
 } from 'lucide-react';
-import { useToast } from '@/pages/hooks/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import ManageStudents from '@/components/teacher/ManageStudents';
 import ManageAssignments from '@/components/teacher/ManageAssignments';
 import ManageGrades from '@/components/teacher/ManageGrades';
@@ -146,7 +146,7 @@ const TeacherDashboard = () => {
           </div>
 
           {/* Menu Items */}
-          {/* <nav className="flex-1 space-y-2 overflow-y-auto"> */}
+          <nav className="flex-1 space-y-2 overflow-y-auto">
             {menuItems.map((item) => {
               const Icon = item.icon;
               const isActive = selectedMenu === item.name;
@@ -166,7 +166,7 @@ const TeacherDashboard = () => {
                 </button>
               );
             })}
-          {/* </nav> */}
+          </nav>
 
           {/* Logout */}
           <button
