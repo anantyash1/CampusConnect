@@ -1,0 +1,19 @@
+{
+  // Disable built-in CSS/SCSS/Less validation (Tailwind handles it)
+  "css.validate": false,
+  "scss.validate": false,
+  "less.validate": false,
+
+  // Enable Tailwind IntelliSense in JSX/TSX
+  "tailwindCSS.includeLanguages": {
+    "plaintext": "html",
+    "typescriptreact": "javascriptreact"
+  },
+
+  // Enable class name suggestions
+  "editor.quickSuggestions": {
+    "strings": true
+  },
+
+  "editor.inlineSuggest.enabled": true
+}

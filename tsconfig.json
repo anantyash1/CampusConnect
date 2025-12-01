@@ -1,29 +1,58 @@
 {
   "compilerOptions": {
-    "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    /* ✅ Use modern JS features */
+    "target": "es2017",
+
+    /* ✅ Include modern JS + DOM support */
+    "lib": ["dom", "dom.iterable", "es2017"],
+
+    /* ✅ Enable JS file support */
     "allowJs": true,
+
+    /* ✅ Skip checking of node_modules */
     "skipLibCheck": true,
+
+    /* ✅ Recommended for Next.js */
     "strict": true,
+    "forceConsistentCasingInFileNames": true,
     "noEmit": true,
     "esModuleInterop": true,
+
+    /* ✅ Match Next.js ESM build */
     "module": "esnext",
-    "moduleResolution": "bundler",
+    "moduleResolution": "node",
+
+    /* ✅ Allow importing .json files */
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
+
+    /* ✅ Fixes async/await iteration issues */
+    "downlevelIteration": true,
+
+    /* ✅ Ensure consistent alias paths */
+    "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"]
-    }
+      "@/*": ["./*"],
+      "@/components/*": ["./components/*"],
+      "@/lib/*": ["./lib/*"],
+      "@/models/*": ["./models/*"],
+      "@/types/*": ["./types/*"]
+    },
+
+    /* ✅ Helpful for monorepos or external packages */
+    "allowSyntheticDefaultImports": true,
+    "moduleDetection": "force"
   },
+
+  /* ✅ Make sure TS looks into all source files */
   "include": [
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
-    "**/*.mts"
+    ".next/types/**/*.ts"
   ],
+
   "exclude": ["node_modules"]
 }
