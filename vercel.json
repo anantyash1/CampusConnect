@@ -1,15 +1,12 @@
 {
   "version": 2,
-
   "functions": {
     "pages/api/**/*.ts": {
       "maxDuration": 20,
       "memory": 1024
     }
   },
-
   "regions": ["sin1"],
-
   "routes": [
     {
       "src": "/api/(.*)",
@@ -42,15 +39,5 @@
       "src": "/(.*)",
       "dest": "/$1"
     }
-  ],
-
-  "env": {
-    "NODE_ENV": "production"
-  },
-
-  "build": {
-    "env": {
-      "NODE_ENV": "production"
-    }
-  }
+  ]
 }
