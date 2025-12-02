@@ -1,9 +1,9 @@
+// components/student/AssignmentQuestionsView.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { bufferToDataUrl } from '@/lib/fileUtils';
 
 interface AssignmentQuestion {
   _id: string;
@@ -12,7 +12,11 @@ interface AssignmentQuestion {
   subject_name: string;
   semester: string;
   assignment_type: string;
-  assignment_file: any;
+  cloudinary_url?: string; // Optional for old data
+  cloudinary_public_id?: string;
+  assignment_file?: any; // Old binary data
+  file_name: string;
+  file_size?: number;
   upload_time: string;
 }
 
@@ -22,39 +26,107 @@ export default function AssignmentQuestionsView() {
   const [semester, setSemester] = useState('');
   const [questions, setQuestions] = useState<AssignmentQuestion[]>([]);
   const [loading, setLoading] = useState(false);
+  const [allQuestions, setAllQuestions] = useState<AssignmentQuestion[]>([]);
+
+  // Fetch all questions on component mount
+  useEffect(() => {
+    fetchAllQuestions();
+  }, []);
+
+  const fetchAllQuestions = async () => {
+    try {
+      const response = await axios.get('/api/assignment-questions');
+      setAllQuestions(response.data);
+      console.log('Fetched questions:', response.data.length);
+    } catch (error) {
+      console.error('Error fetching questions:', error);
+      toast.error('Failed to fetch assignments');
+    }
+  };
 
   const handleSearch = async () => {
-    if (!teacherName || !subjectName || !semester) {
-      toast.error('Please fill all search fields');
+    if (!teacherName && !subjectName && !semester) {
+      // If no filters, show all
+      setQuestions(allQuestions);
+      if (allQuestions.length > 0) {
+        toast.success(`Showing all ${allQuestions.length} assignments`);
+      }
       return;
     }
 
     setLoading(true);
     try {
-      const response = await axios.get<AssignmentQuestion[]>(
-        `/api/assignment-questions?teacher_name=${encodeURIComponent(
-          teacherName.trim()
-        )}&subject_name=${encodeURIComponent(
-          subjectName.trim()
-        )}&semester=${encodeURIComponent(semester.trim())}`
-      );
+      // Filter locally for better performance
+      const filtered = allQuestions.filter(q => {
+        let matches = true;
+        
+        if (teacherName) {
+          matches = matches && q.teacher_name.toLowerCase().includes(teacherName.toLowerCase());
+        }
+        
+        if (subjectName) {
+          matches = matches && q.subject_name.toLowerCase().includes(subjectName.toLowerCase());
+        }
+        
+        if (semester) {
+          matches = matches && q.semester.toLowerCase().includes(semester.toLowerCase());
+        }
+        
+        return matches;
+      });
 
-      if (response.data.length === 0) {
+      setQuestions(filtered);
+      
+      if (filtered.length === 0) {
         toast('No assignments found for the specified criteria', {
           icon: 'ℹ️',
           style: { background: '#2563eb', color: 'white' },
         });
       } else {
-        toast.success(`Found ${response.data.length} assignment(s)`);
+        toast.success(`Found ${filtered.length} assignment(s)`);
       }
-
-      setQuestions(response.data);
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to fetch assignments');
-      setQuestions([]);
+      toast.error('Failed to filter assignments');
+      console.error('Filter error:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const clearFilters = () => {
+    setTeacherName('');
+    setSubjectName('');
+    setSemester('');
+    setQuestions(allQuestions);
+    toast.success('Filters cleared');
+  };
+
+  const getFileSize = (bytes?: number): string => {
+    if (!bytes || bytes === 0) return 'Unknown size';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const getFileIcon = (type: string) => {
+    if (type === 'PDF') return '📄';
+    if (type === 'Photo') return '🖼️';
+    return '📁';
+  };
+
+  // Function to check if file is available
+  const isFileAvailable = (question: AssignmentQuestion) => {
+    return question.cloudinary_url || question.assignment_file;
+  };
+
+  // Function to get file URL based on data type
+  const getFileUrl = (question: AssignmentQuestion) => {
+    if (question.cloudinary_url) {
+      return question.cloudinary_url;
+    }
+    // For old binary data, we can't directly display it without conversion
+    return null;
   };
 
   return (
@@ -72,7 +144,7 @@ export default function AssignmentQuestionsView() {
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <label className="text-sm text-gray-300 block mb-1">Teacher Name *</label>
+            <label className="text-sm text-gray-300 block mb-1">Teacher Name</label>
             <input
               type="text"
               value={teacherName}
@@ -83,7 +155,7 @@ export default function AssignmentQuestionsView() {
           </div>
 
           <div>
-            <label className="text-sm text-gray-300 block mb-1">Subject Name *</label>
+            <label className="text-sm text-gray-300 block mb-1">Subject Name</label>
             <input
               type="text"
               value={subjectName}
@@ -94,7 +166,7 @@ export default function AssignmentQuestionsView() {
           </div>
 
           <div>
-            <label className="text-sm text-gray-300 block mb-1">Semester *</label>
+            <label className="text-sm text-gray-300 block mb-1">Semester</label>
             <input
               type="text"
               value={semester}
@@ -104,141 +176,155 @@ export default function AssignmentQuestionsView() {
             />
           </div>
 
-          <div className="flex items-end">
+          <div className="flex items-end gap-2">
             <button
               onClick={handleSearch}
               disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 transition px-8 py-3 text-lg font-semibold rounded-lg text-white shadow-md hover:shadow-blue-500/30 disabled:opacity-50"
+              className="flex-1 bg-blue-600 hover:bg-blue-700 transition px-4 py-2 text-lg font-semibold rounded-lg text-white shadow-md hover:shadow-blue-500/30 disabled:opacity-50"
             >
               {loading ? 'Searching...' : 'Search'}
+            </button>
+            <button
+              onClick={clearFilters}
+              className="bg-gray-700 hover:bg-gray-600 transition px-4 py-2 rounded-lg font-semibold text-white"
+            >
+              Clear
             </button>
           </div>
         </div>
 
         <div className="mt-4 p-3 bg-blue-900/30 border border-blue-700 rounded text-sm text-blue-300">
-          💡 <strong>Tip:</strong> Search is case-insensitive. You can type in any case.
+          💡 <strong>Tip:</strong> Leave fields empty to see all assignments. Currently showing {allQuestions.length} total assignments.
         </div>
       </div>
 
       {/* 📜 Results Section */}
       {loading ? (
         <div className="flex justify-center items-center h-40">
-          <div className="w-10 h-10 border-4 border-t-accent border-gray-700 rounded-full animate-spin"></div>
+          <div className="w-10 h-10 border-4 border-t-blue-500 border-gray-700 rounded-full animate-spin"></div>
         </div>
       ) : questions.length > 0 ? (
-        <div className="space-y-10 max-w-5xl mx-auto">
-          <h3 className="text-2xl font-bold text-accent mb-4 text-center">
-            Found {questions.length} Assignment(s)
+        <div className="space-y-6 max-w-5xl mx-auto">
+          <h3 className="text-2xl font-bold text-blue-300 mb-4">
+            {questions.length} Assignment(s) Found
           </h3>
 
           {questions.map((question) => {
-            const fileDataUrl = bufferToDataUrl(
-              question.assignment_file,
-              question.assignment_type
-            );
-
+            const fileUrl = getFileUrl(question);
+            const isCloudinary = !!question.cloudinary_url;
+            const isOldFormat = !!question.assignment_file && !question.cloudinary_url;
+            
             return (
               <div
                 key={question._id}
-                className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl shadow-2xl p-6 hover:bg-white/20 hover:scale-[1.01] transition duration-300 ease-in-out"
+                className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl shadow-2xl p-6 hover:bg-white/20 transition duration-300"
               >
                 {/* 🧾 Assignment Info */}
-                <div className="mb-4">
-                  <h4 className="text-2xl font-semibold text-blue-300 mb-2">
-                    {question.assignment_title}
-                  </h4>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm text-gray-300">
-                    <div><strong>👨‍🏫 Teacher:</strong> {question.teacher_name}</div>
-                    <div><strong>📘 Subject:</strong> {question.subject_name}</div>
-                    <div><strong>🏫 Semester:</strong> {question.semester}</div>
-                    <div><strong>📄 Type:</strong> {question.assignment_type}</div>
-                    <div><strong>🕓 Posted:</strong> {new Date(question.upload_time).toLocaleDateString()}</div>
+                <div className="mb-6">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h4 className="text-2xl font-semibold text-blue-300 mb-2">
+                        {getFileIcon(question.assignment_type)} {question.assignment_title}
+                      </h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-300">
+                        <div><strong>👨‍🏫 Teacher:</strong> {question.teacher_name}</div>
+                        <div><strong>📘 Subject:</strong> {question.subject_name}</div>
+                        <div><strong>🏫 Semester:</strong> {question.semester}</div>
+                        <div><strong>📦 File Size:</strong> {getFileSize(question.file_size)}</div>
+                        <div><strong>📄 Type:</strong> {question.assignment_type}</div>
+                        <div><strong>🕓 Posted:</strong> {new Date(question.upload_time).toLocaleDateString()}</div>
+                        <div><strong>💾 Storage:</strong> 
+                          {isCloudinary ? ' Cloudinary ✅' : ' Old Format ⚠️'}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* 📂 File Preview */}
-                {question.assignment_file && fileDataUrl ? (
-                  <div className="mt-4">
-                    {question.assignment_type === 'PDF' ? (
-                      <div>
-                        <iframe
-                          src={fileDataUrl}
-                          width="100%"
-                          height="600px"
-                          className="rounded-lg border border-gray-700 shadow-md"
-                          title={question.assignment_title}
-                        />
-                        <div className="mt-3 flex gap-3">
-                          <a
-                            href={fileDataUrl}
-                            download={`${question.assignment_title}.pdf`}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold transition"
-                          >
-                            📥 Download PDF
-                          </a>
-                          <a
-                            href={fileDataUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-semibold transition"
-                          >
-                            🔍 View Fullscreen
-                          </a>
-                        </div>
-                      </div>
-                    ) : (
-                      <div>
-                        <img
-                          src={fileDataUrl}
-                          alt={question.assignment_title}
-                          className="max-w-full h-auto rounded-lg border border-gray-700 shadow-md hover:scale-[1.02] transition-transform duration-300"
-                        />
-                        <div className="mt-3">
-                          <a
-                            href={fileDataUrl}
-                            download={`${question.assignment_title}.jpg`}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold transition"
-                          >
-                            📥 Download Image
-                          </a>
-                        </div>
-                      </div>
-                    )}
+                {/* 📂 File Actions */}
+                {isCloudinary && fileUrl ? (
+                  <div className="space-y-4">
+                    {/* View/Download Buttons */}
+                    <div className="flex flex-wrap gap-3">
+                      <a
+                        href={fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition flex items-center gap-2"
+                      >
+                        👁️ View Assignment
+                      </a>
+                      
+                      <a
+                        href={fileUrl}
+                        download={`${question.assignment_title}_${question.subject_name}.${question.assignment_type.toLowerCase()}`}
+                        className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold transition flex items-center gap-2"
+                      >
+                        📥 Download
+                      </a>
+                      
+                      {question.assignment_type === 'PDF' && (
+                        <a
+                          href={`https://docs.google.com/viewer?url=${encodeURIComponent(fileUrl)}&embedded=true`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition flex items-center gap-2"
+                        >
+                          📖 Google Viewer
+                        </a>
+                      )}
+                    </div>
+
+                    {/* File Info */}
+                    <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+                      <p className="text-sm text-gray-400">
+                        <strong>Cloud Storage:</strong> {question.file_name} • {getFileSize(question.file_size)} • Secure Cloudinary URL
+                      </p>
+                    </div>
+                  </div>
+                ) : isOldFormat ? (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-yellow-900/30 border border-yellow-700 text-yellow-300 rounded-lg">
+                      ⚠️ <strong>Old Format Assignment</strong>
+                      <p className="mt-2 text-sm">
+                        This assignment is stored in the old format. Please ask your teacher to re-upload it to enable viewing and downloading.
+                      </p>
+                    </div>
+                    <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+                      <p className="text-sm text-gray-400">
+                        <strong>File:</strong> {question.file_name} • Old binary format • Needs migration
+                      </p>
+                    </div>
                   </div>
                 ) : (
-                  <div className="mt-4 p-4 bg-red-900/30 border border-red-700 text-red-300 rounded-lg">
-                    ⚠️ Error loading file. Please contact your teacher.
+                  <div className="p-4 bg-red-900/30 border border-red-700 text-red-300 rounded-lg">
+                    ⚠️ File not available. Please contact your teacher.
                   </div>
                 )}
 
-                {/* 💬 Footer Note */}
+                {/* 💬 Note */}
                 <div className="mt-6 p-4 bg-blue-900/30 border border-blue-700 text-blue-200 rounded-lg">
-                  💡 <strong>Tip:</strong> Download or view this assignment to complete and submit before the deadline.
+                  {isCloudinary ? (
+                    <p>💡 <strong>Note:</strong> This assignment is stored securely in Cloudinary. Download and submit before the deadline.</p>
+                  ) : (
+                    <p>⚠️ <strong>Note:</strong> This assignment needs to be migrated to Cloudinary for proper access.</p>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
       ) : (
-        <p className="text-center text-gray-400 mt-10">
-          No assignments found. Please try searching again.
-        </p>
+        <div className="text-center text-gray-400 mt-10">
+          <p className="text-lg mb-4">No assignments match your search criteria.</p>
+          <button
+            onClick={clearFilters}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg"
+          >
+            View All Assignments
+          </button>
+        </div>
       )}
-
-      {/* 🌌 Floating Animation */}
-      <style jsx global>{`
-        @keyframes float {
-          0%, 100% {
-            transform: translateY(0);
-          }
-          50% {
-            transform: translateY(-8px);
-          }
-        }
-        .hover\\:scale-105:hover {
-          animation: float 6s ease-in-out infinite;
-        }
-      `}</style>
     </div>
   );
 }

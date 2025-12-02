@@ -1,4 +1,133 @@
-// /pages/api/assignment-question/index.ts
+// // /pages/api/assignment-question/index.ts
+// import { NextApiRequest, NextApiResponse } from 'next';
+// import { getDatabase } from '@/lib/mongodb';
+// import { ObjectId } from 'mongodb';
+// import { uploadToCloudinary } from '@/lib/cloudinary';
+
+// export const config = {
+//   api: {
+//     bodyParser: false,
+//   },
+// };
+
+// // Helper to parse form data
+// import { IncomingForm, Fields, Files } from 'formidable';
+
+// const parseForm = (req: NextApiRequest): Promise<{ fields: Fields; files: Files }> => {
+//   return new Promise((resolve, reject) => {
+//     const form = new IncomingForm();
+//     form.parse(req, (err, fields, files) => {
+//       if (err) reject(err);
+//       else resolve({ fields, files });
+//     });
+//   });
+// };
+
+// export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+//   const db = await getDatabase();
+//   const collection = db.collection('assignment_questions');
+
+//   // ===== GET =====
+//   if (req.method === 'GET') {
+//     try {
+//       const questions = await collection.find({}).sort({ upload_time: -1 }).toArray();
+//       res.status(200).json(questions);
+//     } catch (err) {
+//       console.error('GET /assignment-questions error:', err);
+//       res.status(500).json({ message: 'Internal server error' });
+//     }
+//   }
+
+//   // ===== POST =====
+//   else if (req.method === 'POST') {
+//     try {
+//       const { fields, files } = await parseForm(req);
+
+//       const file = Array.isArray(files.assignment_file)
+//         ? files.assignment_file[0]
+//         : files.assignment_file;
+
+//       if (!file) {
+//         return res.status(400).json({ message: 'No file uploaded' });
+//       }
+
+//       // Read file and upload to Cloudinary
+//       const fs = await import('fs/promises');
+//       const fileBuffer = await fs.readFile(file.filepath);
+      
+//       // Upload to Cloudinary
+//       const uploadResult = await uploadToCloudinary(fileBuffer, 'assignment-questions', 'raw');
+
+//       const doc = {
+//         teacher_name: Array.isArray(fields.teacher_name)
+//           ? fields.teacher_name[0]
+//           : fields.teacher_name,
+//         subject_name: Array.isArray(fields.subject_name)
+//           ? fields.subject_name[0]
+//           : fields.subject_name,
+//         semester: Array.isArray(fields.semester)
+//           ? fields.semester[0]
+//           : fields.semester,
+//         assignment_title: Array.isArray(fields.assignment_title)
+//           ? fields.assignment_title[0]
+//           : fields.assignment_title,
+//         assignment_type: Array.isArray(fields.assignment_type)
+//           ? fields.assignment_type[0]
+//           : fields.assignment_type,
+//         cloudinary_url: uploadResult.secure_url,
+//         cloudinary_public_id: uploadResult.public_id,
+//         file_name: file.originalFilename || 'assignment',
+//         file_size: uploadResult.bytes,
+//         upload_time: new Date(),
+//       };
+
+//       await collection.insertOne(doc);
+      
+//       // Clean up temporary file
+//       await fs.unlink(file.filepath);
+      
+//       res.status(201).json({ message: 'Assignment uploaded successfully' });
+//     } catch (err) {
+//       console.error('POST /assignment-questions error:', err);
+//       res.status(500).json({ message: 'Internal server error' });
+//     }
+//   }
+
+//   // ===== DELETE =====
+//   else if (req.method === 'DELETE') {
+//     try {
+//       const { id, teacher_name } = req.query;
+
+//       if (id) {
+//         // Get the document first to delete from Cloudinary
+//         const doc = await collection.findOne({ _id: new ObjectId(id as string) });
+//         if (doc && doc.cloudinary_public_id) {
+//           const { deleteFromCloudinary } = await import('@/lib/cloudinary');
+//           await deleteFromCloudinary(doc.cloudinary_public_id, 'raw');
+//         }
+//         await collection.deleteOne({ _id: new ObjectId(id as string) });
+//       } else if (teacher_name) {
+//         await collection.deleteMany({
+//           teacher_name: { $regex: new RegExp(`^${teacher_name as string}$`, 'i') },
+//         });
+//       } else {
+//         return res.status(400).json({ message: 'Missing id or teacher_name' });
+//       }
+
+//       res.status(200).json({ message: 'Assignment deleted successfully' });
+//     } catch (err) {
+//       console.error('DELETE /assignment-questions error:', err);
+//       res.status(500).json({ message: 'Internal server error' });
+//     }
+//   }
+
+//   // ===== INVALID =====
+//   else {
+//     res.status(405).json({ message: 'Method not allowed' });
+//   }
+// }
+
+// pages/api/assignment-questions/index.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getDatabase } from '@/lib/mongodb';
 import { ObjectId } from 'mongodb';
@@ -27,7 +156,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
   }
 
-  // ===== POST ===== (Now uses base64 instead of formidable)
+  // ===== POST =====
   else if (req.method === 'POST') {
     try {
       const {
@@ -38,10 +167,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         assignment_type,
         file_data, // Base64
         file_name,
+        file_size,
       } = req.body;
+
+      console.log('Received upload request:', {
+        teacher_name,
+        subject_name,
+        semester,
+        assignment_title,
+        assignment_type,
+        file_name,
+        file_size,
+        has_file_data: !!file_data,
+        file_data_length: file_data?.length
+      });
 
       // Validate
       if (!teacher_name || !subject_name || !semester || !assignment_title || !file_data) {
+        console.error('Missing required fields:', {
+          teacher_name: !teacher_name,
+          subject_name: !subject_name,
+          semester: !semester,
+          assignment_title: !assignment_title,
+          file_data: !file_data
+        });
         return res.status(400).json({ 
           message: 'Missing required fields' 
         });
@@ -50,22 +199,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Extract base64
       const base64Data = file_data.split(',')[1];
       if (!base64Data) {
+        console.error('Invalid base64 format');
         return res.status(400).json({ 
           message: 'Invalid file format' 
         });
       }
 
+      console.log('Converting base64 to buffer...');
       // Convert to buffer
       const fileBuffer = Buffer.from(base64Data, 'base64');
+      console.log('File buffer created, size:', fileBuffer.length);
       
       // Upload to Cloudinary
+      console.log('Uploading to Cloudinary...');
+      const resourceType = assignment_type === 'PDF' ? 'raw' : 'image';
       const uploadResult = await uploadToCloudinary(
         fileBuffer, 
         'assignment-questions', 
-        'raw'
+        resourceType
       );
+      console.log('Cloudinary upload successful:', {
+        url: uploadResult.secure_url,
+        public_id: uploadResult.public_id,
+        size: uploadResult.bytes
+      });
 
-      // Create document
+      // Create document - REMOVED assignment_file field, ADDED cloudinary fields
       const doc = {
         teacher_name,
         subject_name,
@@ -74,20 +233,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         assignment_type: assignment_type || 'PDF',
         cloudinary_url: uploadResult.secure_url,
         cloudinary_public_id: uploadResult.public_id,
+        cloudinary_format: uploadResult.format,
         file_name: file_name || 'assignment',
         file_size: uploadResult.bytes,
         upload_time: new Date(),
       };
 
-      await collection.insertOne(doc);
+      console.log('Saving to MongoDB:', {
+        teacher_name: doc.teacher_name,
+        subject_name: doc.subject_name,
+        assignment_title: doc.assignment_title,
+        cloudinary_url: doc.cloudinary_url,
+        file_size: doc.file_size
+      });
+
+      const result = await collection.insertOne(doc);
+      console.log('MongoDB insert successful, ID:', result.insertedId);
       
       res.status(201).json({ 
         message: 'Assignment uploaded successfully',
-        cloudinary_url: uploadResult.secure_url
+        cloudinary_url: uploadResult.secure_url,
+        id: result.insertedId
       });
       
     } catch (err: any) {
-      console.error('POST error:', err);
+      console.error('POST error details:', err);
       res.status(500).json({ 
         message: 'Upload failed',
         error: process.env.NODE_ENV === 'development' ? err.message : undefined

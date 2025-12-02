@@ -151,13 +151,7 @@ export default function LandingPage() {
                   <ChartBarIcon className="w-5 h-5" />
                   Dashboard
                 </button>
-                <button
-                  onClick={handleCampusConnectClick}
-                  className="flex items-center justify-center gap-2 px-6 py-4 border-2 border-purple-600 text-purple-600 bg-white font-bold text-base rounded-xl hover:bg-purple-50 hover:shadow-xl transition-all"
-                >
-                  <UsersIcon className="w-5 h-5" />
-                  StudentHolistic AI Connect
-                </button>
+                
                 <Link
                   href="/about"
                   className="flex items-center justify-center px-6 py-4 bg-gray-100 text-gray-800 font-bold text-base rounded-xl hover:bg-gray-200 hover:shadow-xl transition-all"
@@ -193,7 +187,7 @@ export default function LandingPage() {
               <div className="relative w-full max-w-md mx-auto py-8">
                 <div className="relative aspect-square">
                   <Image
-                    src="/images/logo2.jpg"
+                    src="/register-side.png"
                     alt="Campus Connect – Complete Student Management Platform"
                     fill
                     className="rounded-2xl shadow-2xl object-cover"
