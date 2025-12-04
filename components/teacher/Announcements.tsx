@@ -90,9 +90,10 @@ export default function Announcements({ username }: AnnouncementsProps) {
     }
   };
 
+  // components/teacher/Announcements.tsx
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validation
     if (type === 'text' && !content.trim()) {
       toast.error('Please enter announcement content');
@@ -115,27 +116,29 @@ export default function Announcements({ username }: AnnouncementsProps) {
       if (type === 'text') {
         announcementData.content = content.trim();
       } else if (type === 'image' && image) {
-        // Convert image to base64 for API
         try {
+          console.log('Converting image to base64...'); // DEBUG
           const image_data = await convertImageToBase64(image);
+          console.log('Base64 length:', image_data.length); // DEBUG
           announcementData.image_data = image_data;
           announcementData.caption = caption.trim();
         } catch (error) {
+          console.error('Base64 conversion error:', error); // DEBUG
           toast.error('Failed to process image. Please try again.');
           setSubmitting(false);
           return;
         }
       }
 
-      console.log('Posting announcement...');
+      console.log('Posting announcement...', { type, posted_by: username }); // DEBUG
       const response = await axios.post('/api/announcements', announcementData, {
         headers: {
           'Content-Type': 'application/json',
         },
-        timeout: 30000, // 30 second timeout
+        timeout: 30000,
       });
 
-      console.log('Announcement posted:', response.data);
+      console.log('Success response:', response.data); // DEBUG
       toast.success('Announcement posted successfully! 🎉');
 
       // Reset form
@@ -149,25 +152,32 @@ export default function Announcements({ username }: AnnouncementsProps) {
       fetchAnnouncements();
 
     } catch (error: any) {
-      console.error('Error posting announcement:', error);
-      
+      console.error('Full error object:', error); // DEBUG
+      console.error('Error response:', error.response); // DEBUG
+      console.error('Error message:', error.message); // DEBUG
+
       if (error.code === 'ECONNABORTED') {
         toast.error('Request timeout. Please try again.');
-      } else if (error.response?.status === 413) {
-        toast.error('Image too large. Please select a smaller image (max 3MB).');
-      } else if (error.response?.status === 400) {
-        toast.error(error.response.data.message || 'Invalid data');
-      } else if (error.response?.status === 500) {
-        toast.error('Server error. Please try again later.');
-      } else if (error.message?.includes('Network Error')) {
+      } else if (error.response) {
+        // Server responded with error
+        const status = error.response.status;
+        const message = error.response.data?.message || 'Server error';
+        console.error(`Server error ${status}:`, message); // DEBUG
+        toast.error(`Error: ${message}`);
+      } else if (error.request) {
+        // Request made but no response
+        console.error('No response received:', error.request); // DEBUG
         toast.error('Network error. Please check your connection.');
       } else {
-        toast.error(error.response?.data?.message || 'Failed to post announcement');
+        // Something else happened
+        console.error('Error:', error.message); // DEBUG
+        toast.error(error.message || 'Failed to post announcement');
       }
     } finally {
       setSubmitting(false);
     }
   };
+
 
   const formatDate = (timestamp: string) => {
     return new Date(timestamp).toLocaleString('en-US', {
@@ -189,7 +199,7 @@ export default function Announcements({ username }: AnnouncementsProps) {
         className="bg-gray-800 p-6 rounded-xl border border-gray-600 shadow-md mb-8"
       >
         <h3 className="text-xl font-semibold mb-4 text-blue-400">Create New Announcement</h3>
-        
+
         <div className="mb-4">
           <label className="text-sm text-gray-300 block mb-2">Announcement Type</label>
           <div className="flex gap-4">
@@ -302,7 +312,7 @@ export default function Announcements({ username }: AnnouncementsProps) {
       {/* Previous Announcements Section */}
       <div className="mb-6">
         <h3 className="text-2xl font-bold mb-4 text-blue-400">Previous Announcements</h3>
-        
+
         {loading ? (
           <div className="flex items-center justify-center h-40">
             <div className="text-center">
@@ -333,11 +343,10 @@ export default function Announcements({ username }: AnnouncementsProps) {
                       {formatDate(announcement.timestamp)}
                     </p>
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    announcement.type === 'text' 
-                      ? 'bg-blue-600 text-white' 
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${announcement.type === 'text'
+                      ? 'bg-blue-600 text-white'
                       : 'bg-purple-600 text-white'
-                  }`}>
+                    }`}>
                     {announcement.type.toUpperCase()}
                   </span>
                 </div>

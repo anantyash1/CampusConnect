@@ -18,6 +18,7 @@ cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
+  secure: true,
 });
 
 export default cloudinary;
@@ -26,13 +27,21 @@ export default cloudinary;
 export const uploadToCloudinary = async (
   fileBuffer: Buffer, 
   folder: string, 
-  resourceType: 'image' | 'raw' = 'image'
-): Promise<{secure_url: string; public_id: string; format: string; bytes: number}> => {
+  resourceType: 'image' | 'raw' | 'auto' = 'auto'
+): Promise<{
+  secure_url: string;
+  public_id: string;
+  format: string;
+  bytes: number;
+  resource_type: string;
+}> => {
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder,
         resource_type: resourceType,
+        allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx'],
+        timeout: 60000,
       },
       (error, result) => {
         if (error) {
@@ -43,7 +52,8 @@ export const uploadToCloudinary = async (
             secure_url: result.secure_url,
             public_id: result.public_id,
             format: result.format || (resourceType === 'raw' ? 'pdf' : 'jpg'),
-            bytes: result.bytes || fileBuffer.length
+            bytes: result.bytes || fileBuffer.length,
+            resource_type: result.resource_type || resourceType
           });
         } else {
           reject(new Error('No result from Cloudinary'));

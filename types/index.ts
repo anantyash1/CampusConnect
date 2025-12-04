@@ -1,5 +1,4 @@
-// /types/index.ts
-
+// types/index.ts
 // User authentication
 export interface User {
   _id?: string;
@@ -9,7 +8,7 @@ export interface User {
   createdAt?: Date;
 }
 
-// Student information
+// Student information with Cloudinary photo
 export interface Student {
   _id?: string;
   usn: string;
@@ -22,11 +21,11 @@ export interface Student {
   academic_year: string;
   '12_percentage': number;
   '10_percentage': number;
-  // Old field - for backward compatibility
-  photo?: boolean;
-  // New fields - Cloudinary storage
+  // Cloudinary fields (new system)
   photo_url?: string;
   cloudinary_public_id?: string;
+  // Deprecated fields (keep for backward compatibility)
+  photo?: boolean;
   createdAt?: Date;
 }
 
@@ -80,9 +79,7 @@ export interface Announcement {
   _id?: string;
   type: 'text' | 'image';
   content?: string;
-  // Old field - local storage (deprecated)
-  image_path?: string;
-  // New fields - Cloudinary storage
+  // Cloudinary fields
   image_url?: string;
   cloudinary_public_id?: string;
   caption?: string;
@@ -98,14 +95,15 @@ export interface AssignmentQuestion {
   semester: string;
   assignment_title: string;
   assignment_type: 'PDF' | 'Photo';
-  // Old field - local storage (deprecated)
-  assignment_file?: Buffer;
-  // New fields - Cloudinary storage
+  // Cloudinary fields (new system)
   cloudinary_url: string;
-  cloudinary_public_id?: string;
+  cloudinary_public_id: string;
+  cloudinary_format?: string;
   file_name: string;
   file_size: number;
   upload_time: Date;
+  // Deprecated field (keep for backward compatibility)
+  assignment_file?: Buffer;
 }
 
 // Student answers with Cloudinary support
@@ -117,19 +115,16 @@ export interface StudentAnswer {
   section: string;
   branch: string;
   file_type: 'PDF' | 'Photo';
-  // Old field - local storage (deprecated)
-  file_data?: string; // Base64 string for fallback
-  // New fields - Cloudinary storage
-  cloudinary_url?: string;
-  cloudinary_public_id?: string;
+  // Cloudinary fields
+  cloudinary_url: string;
+  cloudinary_public_id: string;
   cloudinary_format?: string;
-  storage_type?: 'cloudinary' | 'base64';
   file_name: string;
   file_size: number;
   upload_time: Date;
 }
 
-// Optional: Cloudinary upload response type
+// Cloudinary upload response type
 export interface CloudinaryUploadResponse {
   secure_url: string;
   public_id: string;
@@ -138,7 +133,7 @@ export interface CloudinaryUploadResponse {
   resource_type: 'image' | 'raw';
 }
 
-// Optional: File upload state
+// File upload state
 export interface UploadState {
   loading: boolean;
   progress: number;
@@ -147,7 +142,7 @@ export interface UploadState {
   url?: string;
 }
 
-// Optional: Filter types for queries
+// Filter types
 export interface StudentFilter {
   branch?: string;
   section?: string;
