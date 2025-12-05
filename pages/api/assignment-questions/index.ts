@@ -127,6 +127,172 @@
 //   }
 // }
 
+// // pages/api/assignment-questions/index.ts
+// import { NextApiRequest, NextApiResponse } from 'next';
+// import { getDatabase } from '@/lib/mongodb';
+// import { ObjectId } from 'mongodb';
+// import { uploadToCloudinary } from '@/lib/cloudinary';
+
+// export const config = {
+//   api: {
+//     bodyParser: {
+//       sizeLimit: '10mb',
+//     },
+//   },
+// };
+
+// export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+//   const db = await getDatabase();
+//   const collection = db.collection('assignment_questions');
+
+//   // ===== GET =====
+//   if (req.method === 'GET') {
+//     try {
+//       const questions = await collection.find({}).sort({ upload_time: -1 }).toArray();
+//       res.status(200).json(questions);
+//     } catch (err) {
+//       console.error('GET error:', err);
+//       res.status(500).json({ message: 'Internal server error' });
+//     }
+//   }
+
+//   // ===== POST =====
+//   else if (req.method === 'POST') {
+//     try {
+//       const {
+//         teacher_name,
+//         subject_name,
+//         semester,
+//         assignment_title,
+//         assignment_type,
+//         file_data, // Base64
+//         file_name,
+//         file_size,
+//       } = req.body;
+
+//       console.log('Received upload request:', {
+//         teacher_name,
+//         subject_name,
+//         semester,
+//         assignment_title,
+//         assignment_type,
+//         file_name,
+//         file_size,
+//         has_file_data: !!file_data,
+//         file_data_length: file_data?.length
+//       });
+
+//       // Validate
+//       if (!teacher_name || !subject_name || !semester || !assignment_title || !file_data) {
+//         console.error('Missing required fields:', {
+//           teacher_name: !teacher_name,
+//           subject_name: !subject_name,
+//           semester: !semester,
+//           assignment_title: !assignment_title,
+//           file_data: !file_data
+//         });
+//         return res.status(400).json({ 
+//           message: 'Missing required fields' 
+//         });
+//       }
+
+//       // Extract base64
+//       const base64Data = file_data.split(',')[1];
+//       if (!base64Data) {
+//         console.error('Invalid base64 format');
+//         return res.status(400).json({ 
+//           message: 'Invalid file format' 
+//         });
+//       }
+
+//       console.log('Converting base64 to buffer...');
+//       // Convert to buffer
+//       const fileBuffer = Buffer.from(base64Data, 'base64');
+//       console.log('File buffer created, size:', fileBuffer.length);
+      
+//       // Upload to Cloudinary
+//       console.log('Uploading to Cloudinary...');
+//       const resourceType = assignment_type === 'PDF' ? 'raw' : 'image';
+//       const uploadResult = await uploadToCloudinary(
+//         fileBuffer, 
+//         'assignment-questions', 
+//         resourceType
+//       );
+//       console.log('Cloudinary upload successful:', {
+//         url: uploadResult.secure_url,
+//         public_id: uploadResult.public_id,
+//         size: uploadResult.bytes
+//       });
+
+//       // Create document - REMOVED assignment_file field, ADDED cloudinary fields
+//       const doc = {
+//         teacher_name,
+//         subject_name,
+//         semester,
+//         assignment_title,
+//         assignment_type: assignment_type || 'PDF',
+//         cloudinary_url: uploadResult.secure_url,
+//         cloudinary_public_id: uploadResult.public_id,
+//         cloudinary_format: uploadResult.format,
+//         file_name: file_name || 'assignment',
+//         file_size: uploadResult.bytes,
+//         upload_time: new Date(),
+//       };
+
+//       console.log('Saving to MongoDB:', {
+//         teacher_name: doc.teacher_name,
+//         subject_name: doc.subject_name,
+//         assignment_title: doc.assignment_title,
+//         cloudinary_url: doc.cloudinary_url,
+//         file_size: doc.file_size
+//       });
+
+//       const result = await collection.insertOne(doc);
+//       console.log('MongoDB insert successful, ID:', result.insertedId);
+      
+//       res.status(201).json({ 
+//         message: 'Assignment uploaded successfully',
+//         cloudinary_url: uploadResult.secure_url,
+//         id: result.insertedId
+//       });
+      
+//     } catch (err: any) {
+//       console.error('POST error details:', err);
+//       res.status(500).json({ 
+//         message: 'Upload failed',
+//         error: process.env.NODE_ENV === 'development' ? err.message : undefined
+//       });
+//     }
+//   }
+
+//   // ===== DELETE =====
+//   else if (req.method === 'DELETE') {
+//     try {
+//       const { id, teacher_name } = req.query;
+
+//       if (id) {
+//         await collection.deleteOne({ _id: new ObjectId(id as string) });
+//       } else if (teacher_name) {
+//         await collection.deleteMany({
+//           teacher_name: { $regex: new RegExp(`^${teacher_name as string}$`, 'i') },
+//         });
+//       } else {
+//         return res.status(400).json({ message: 'Missing id or teacher_name' });
+//       }
+
+//       res.status(200).json({ message: 'Assignment deleted successfully' });
+//     } catch (err) {
+//       console.error('DELETE error:', err);
+//       res.status(500).json({ message: 'Internal server error' });
+//     }
+//   }
+
+//   else {
+//     res.status(405).json({ message: 'Method not allowed' });
+//   }
+// }
+
+
 // pages/api/assignment-questions/index.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getDatabase } from '@/lib/mongodb';
@@ -149,7 +315,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === 'GET') {
     try {
       const questions = await collection.find({}).sort({ upload_time: -1 }).toArray();
-      res.status(200).json(questions);
+      
+      // Transform data to ensure consistent structure
+      const transformedQuestions = questions.map(q => ({
+        _id: q._id,
+        assignment_title: q.assignment_title || '',
+        teacher_name: q.teacher_name || '',
+        subject_name: q.subject_name || '',
+        semester: q.semester || '',
+        assignment_type: q.assignment_type || 'PDF',
+        cloudinary_url: q.cloudinary_url || null,
+        cloudinary_public_id: q.cloudinary_public_id || null,
+        cloudinary_format: q.cloudinary_format || 'pdf',
+        file_name: q.file_name || 'assignment',
+        file_size: q.file_size || 0,
+        upload_time: q.upload_time || new Date(),
+      }));
+      
+      res.status(200).json(transformedQuestions);
     } catch (err) {
       console.error('GET error:', err);
       res.status(500).json({ message: 'Internal server error' });
@@ -158,6 +341,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // ===== POST =====
   else if (req.method === 'POST') {
+    let fileBuffer: Buffer;
+    
     try {
       const {
         teacher_name,
@@ -170,7 +355,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         file_size,
       } = req.body;
 
-      console.log('Received upload request:', {
+      console.log('📤 Received upload request for:', {
         teacher_name,
         subject_name,
         semester,
@@ -178,86 +363,108 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         assignment_type,
         file_name,
         file_size,
-        has_file_data: !!file_data,
-        file_data_length: file_data?.length
       });
 
-      // Validate
+      // Validate required fields
       if (!teacher_name || !subject_name || !semester || !assignment_title || !file_data) {
-        console.error('Missing required fields:', {
-          teacher_name: !teacher_name,
-          subject_name: !subject_name,
-          semester: !semester,
-          assignment_title: !assignment_title,
-          file_data: !file_data
-        });
         return res.status(400).json({ 
           message: 'Missing required fields' 
         });
       }
 
-      // Extract base64
-      const base64Data = file_data.split(',')[1];
-      if (!base64Data) {
-        console.error('Invalid base64 format');
+      // Validate file_data is a string
+      if (typeof file_data !== 'string') {
         return res.status(400).json({ 
-          message: 'Invalid file format' 
+          message: 'file_data must be a base64 string' 
         });
       }
 
-      console.log('Converting base64 to buffer...');
-      // Convert to buffer
-      const fileBuffer = Buffer.from(base64Data, 'base64');
-      console.log('File buffer created, size:', fileBuffer.length);
-      
-      // Upload to Cloudinary
-      console.log('Uploading to Cloudinary...');
-      const resourceType = assignment_type === 'PDF' ? 'raw' : 'image';
-      const uploadResult = await uploadToCloudinary(
-        fileBuffer, 
-        'assignment-questions', 
-        resourceType
-      );
-      console.log('Cloudinary upload successful:', {
-        url: uploadResult.secure_url,
-        public_id: uploadResult.public_id,
-        size: uploadResult.bytes
-      });
+      // Extract base64 data (remove data:application/pdf;base64, prefix)
+      const base64Match = file_data.match(/^data:[^;]+;base64,(.+)$/);
+      if (!base64Match) {
+        return res.status(400).json({ 
+          message: 'Invalid base64 format. Must start with data:[type];base64,' 
+        });
+      }
 
-      // Create document - REMOVED assignment_file field, ADDED cloudinary fields
+      const base64Data = base64Match[1];
+      
+      // Convert to buffer
+      console.log('🔄 Converting base64 to buffer...');
+      try {
+        fileBuffer = Buffer.from(base64Data, 'base64');
+        console.log('✅ Buffer created, size:', fileBuffer.length, 'bytes');
+      } catch (bufferError) {
+        console.error('❌ Buffer conversion failed:', bufferError);
+        return res.status(400).json({ 
+          message: 'Failed to process file data' 
+        });
+      }
+
+      // Upload to Cloudinary with proper resource type
+      const resourceType = assignment_type === 'PDF' ? 'raw' : 'image';
+      console.log('☁️ Uploading to Cloudinary...', { resourceType });
+      
+      let uploadResult;
+      try {
+        uploadResult = await uploadToCloudinary(
+          fileBuffer, 
+          'assignment-questions', 
+          resourceType
+        );
+        console.log('✅ Cloudinary upload successful:', {
+          url: uploadResult.secure_url.substring(0, 50) + '...',
+          public_id: uploadResult.public_id,
+          size: uploadResult.bytes,
+          format: uploadResult.format,
+          resource_type: uploadResult.resource_type
+        });
+      } catch (cloudinaryError: any) {
+        console.error('❌ Cloudinary upload failed:', cloudinaryError);
+        return res.status(500).json({ 
+          message: 'Failed to upload to Cloudinary',
+          error: process.env.NODE_ENV === 'development' ? cloudinaryError.message : undefined
+        });
+      }
+
+      // Create document with Cloudinary fields
       const doc = {
-        teacher_name,
-        subject_name,
-        semester,
-        assignment_title,
-        assignment_type: assignment_type || 'PDF',
+        teacher_name: teacher_name.trim(),
+        subject_name: subject_name.trim(),
+        semester: semester.trim(),
+        assignment_title: assignment_title.trim(),
+        assignment_type: (assignment_type || 'PDF').toUpperCase(),
         cloudinary_url: uploadResult.secure_url,
         cloudinary_public_id: uploadResult.public_id,
         cloudinary_format: uploadResult.format,
+        cloudinary_resource_type: uploadResult.resource_type,
         file_name: file_name || 'assignment',
         file_size: uploadResult.bytes,
         upload_time: new Date(),
       };
 
-      console.log('Saving to MongoDB:', {
-        teacher_name: doc.teacher_name,
-        subject_name: doc.subject_name,
-        assignment_title: doc.assignment_title,
-        cloudinary_url: doc.cloudinary_url,
-        file_size: doc.file_size
+      console.log('💾 Saving to MongoDB:', {
+        title: doc.assignment_title,
+        teacher: doc.teacher_name,
+        subject: doc.subject_name,
+        file_size: doc.file_size,
+        cloudinary_url: doc.cloudinary_url
       });
 
+      // Save to MongoDB
       const result = await collection.insertOne(doc);
-      console.log('MongoDB insert successful, ID:', result.insertedId);
+      console.log('✅ MongoDB insert successful, ID:', result.insertedId);
       
       res.status(201).json({ 
         message: 'Assignment uploaded successfully',
         cloudinary_url: uploadResult.secure_url,
-        id: result.insertedId
+        id: result.insertedId,
+        file_name: doc.file_name,
+        download_url: `/api/download-assignment?id=${result.insertedId}`
       });
       
     } catch (err: any) {
-      console.error('POST error details:', err);
+      console.error('❌ POST error:', err);
       res.status(500).json({ 
         message: 'Upload failed',
         error: process.env.NODE_ENV === 'development' ? err.message : undefined
