@@ -289,13 +289,13 @@ export default function Login() {
             <h2 className="text-4xl font-extrabold text-white mb-6">Sign in to your account</h2>
 
             {/* Google Sign In Button */}
-            <button
+            {/* <button
               onClick={handleGoogleSignIn}
               className="w-full mb-6 flex items-center justify-center gap-3 bg-white text-gray-800 font-semibold py-3 rounded-lg hover:bg-gray-100 transition transform hover:scale-[1.02]"
             >
               <Image src="/google.png" alt="Google" width={20} height={20} />
               Sign in with Google
-            </button>
+            </button> */}
 
             <div className="relative mb-6">
               <div className="absolute inset-0 flex items-center">
